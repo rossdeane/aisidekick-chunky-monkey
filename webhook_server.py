@@ -10,6 +10,30 @@ load_dotenv(dotenv_path=env_path, verbose=True)
 
 app = Flask(__name__)
 
+# WhatsApp webhook verification endpoint
+@app.route('/webhook', methods=['GET'])
+def verify_webhook():
+    # Get the verification token from the query parameters
+    mode = request.args.get('hub.mode')
+    token = request.args.get('hub.verify_token')
+    challenge = request.args.get('hub.challenge')
+    
+    # Get the verification token from environment variables
+    verify_token = os.getenv('WHATSAPP_VERIFY_TOKEN')
+    
+    # Check if the request is for verification
+    if mode and token:
+        # Check if the token matches
+        if mode == 'subscribe' and token == verify_token:
+            # Return the challenge
+            return challenge, 200
+        else:
+            # Return an error if the token doesn't match
+            return jsonify({'error': 'Invalid verification token'}), 403
+    else:
+        # Return an error if the parameters are missing
+        return jsonify({'error': 'Missing verification parameters'}), 400
+
 @app.route('/webhook', methods=['POST'])
 def webhook():
     try:
