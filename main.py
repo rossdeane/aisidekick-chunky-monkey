@@ -1,13 +1,29 @@
 # Simple RAG pipeline for an AI FAQ bot using OpenAI + ChromaDB
 # Note: this is a basic script for dev/test purposes
 
-import openai
+from openai import OpenAI
 import chromadb
 from chromadb.config import Settings
 from uuid import uuid4
 import os
+from dotenv import load_dotenv
+import pathlib
 
-openai.api_key = os.getenv("OPENAI_API_KEY")
+# Get absolute path to .env file
+env_path = pathlib.Path(__file__).parent.absolute() / '.env'
+print(f"Looking for .env at: {env_path}")
+print(f".env file exists: {env_path.exists()}")
+
+# Load environment variables from .env file
+load_dotenv(dotenv_path=env_path, verbose=True)
+
+# Debug: Print environment variable
+api_key = os.getenv("OPENAI_API_KEY")
+print(f"API Key found: {'Yes' if api_key else 'No'}")
+if not api_key:
+    print("Warning: OPENAI_API_KEY environment variable not found!")
+
+client = OpenAI(api_key=api_key)
 
 # --- Setup vector DB ---
 # Updated to use the new ChromaDB client initialization
@@ -20,29 +36,30 @@ def chunk_text(text, chunk_size=300):
     return [" ".join(words[i:i+chunk_size]) for i in range(0, len(words), chunk_size)]
 
 # Example usage
-with open("example_faq.txt", "r") as f:
+with open("alfaromeo.txt", "r") as f:
     content = f.read()
 
 chunks = chunk_text(content)
 
 # --- Step 2: Embed and store ---
 def embed_texts(texts):
-    return openai.Embedding.create(input=texts, model="text-embedding-3-small")['data']
+    response = client.embeddings.create(input=texts, model="text-embedding-3-small")
+    return [item.embedding for item in response.data]
 
 embeddings = embed_texts([chunk for chunk in chunks])
 
 for i, e in enumerate(embeddings):
     collection.add(
         documents=[chunks[i]],
-        embeddings=[e['embedding']],
+        embeddings=[e],
         ids=[str(uuid4())]
     )
 
 # --- Step 3: Answer a query ---
 def search_and_respond(query):
-    query_embedding = openai.Embedding.create(input=[query], model="text-embedding-3-small")['data'][0]['embedding']
+    query_embedding = client.embeddings.create(input=[query], model="text-embedding-3-small").data[0].embedding
     results = collection.query(query_embeddings=[query_embedding], n_results=5)
-    
+
     context = "\n\n".join(results['documents'][0])
 
     prompt = f"""
@@ -56,12 +73,10 @@ def search_and_respond(query):
     ---
     """
 
-    response = openai.ChatCompletion.create(
-        model="gpt-4-0125-preview",
-        messages=[{"role": "user", "content": prompt}]
-    )
+    response = client.chat.completions.create(model="gpt-4-0125-preview",
+    messages=[{"role": "user", "content": prompt}])
 
-    return response['choices'][0]['message']['content']
+    return response.choices[0].message.content
 
 # --- Test it ---
 if __name__ == "__main__":
