@@ -56,46 +56,80 @@ def webhook():
         # Log the entire webhook payload for debugging
         logger.info(f"Received webhook data: {json.dumps(data, indent=2)}")
         
-        # Check if this is a messages webhook
-        if data.get('field') != 'messages':
-            logger.warning(f"Not a messages webhook: {data.get('field')}")
-            return jsonify({'error': 'Not a messages webhook'}), 400
+        # Check if this is a WhatsApp Business Account webhook
+        if data.get('object') != 'whatsapp_business_account':
+            logger.warning(f"Not a WhatsApp Business Account webhook: {data.get('object')}")
+            return jsonify({'error': 'Not a WhatsApp Business Account webhook'}), 400
             
-        # Extract the value object which contains the message details
-        value = data.get('value', {})
-        logger.info(f"Webhook value: {json.dumps(value, indent=2)}")
-        
-        # Extract the first message from the messages array
-        messages = value.get('messages', [])
-        if not messages:
-            logger.warning("No messages found in webhook")
-            return jsonify({'error': 'No messages found in webhook'}), 400
+        # Extract the entry array
+        entries = data.get('entry', [])
+        if not entries:
+            logger.warning("No entries found in webhook")
+            return jsonify({'error': 'No entries found in webhook'}), 400
             
-        message = messages[0]
-        logger.info(f"Processing message: {json.dumps(message, indent=2)}")
-        
-        # Check if this is a text message
-        if message.get('type') != 'text':
-            logger.warning(f"Not a text message: {message.get('type')}")
-            return jsonify({'error': 'Not a text message'}), 400
+        # Process all entries
+        responses = []
+        for entry in entries:
+            logger.info(f"Processing entry: {json.dumps(entry, indent=2)}")
             
-        # Extract the message text
-        message_text = message.get('text', {}).get('body', '')
+            # Extract the changes array
+            changes = entry.get('changes', [])
+            if not changes:
+                logger.warning("No changes found in entry")
+                continue
+                
+            # Process all changes
+            for change in changes:
+                logger.info(f"Processing change: {json.dumps(change, indent=2)}")
+                
+                # Check if this is a messages webhook
+                if change.get('field') != 'messages':
+                    logger.warning(f"Not a messages webhook: {change.get('field')}")
+                    continue
+                    
+                # Extract the value object which contains the message details
+                value = change.get('value', {})
+                logger.info(f"Webhook value: {json.dumps(value, indent=2)}")
+                
+                # Extract all messages from the messages array
+                messages = value.get('messages', [])
+                if not messages:
+                    logger.warning("No messages found in webhook")
+                    continue
+                    
+                # Process all messages
+                for message in messages:
+                    logger.info(f"Processing message: {json.dumps(message, indent=2)}")
+                    
+                    # Check if this is a text message
+                    if message.get('type') != 'text':
+                        logger.warning(f"Not a text message: {message.get('type')}")
+                        continue
+                        
+                    # Extract the message text
+                    message_text = message.get('text', {}).get('body', '')
+                    
+                    if not message_text:
+                        logger.warning("No message text found")
+                        continue
+                        
+                    logger.info(f"Extracted message text: {message_text}")
+                    
+                    # Get the answer using our RAG system
+                    answer = search_and_respond(message_text)
+                    logger.info(f"Generated answer: {answer}")
+                    
+                    # Add the response to our list
+                    responses.append({
+                        'message': answer,
+                        'to': message.get('from')  # Send response to the sender
+                    })
         
-        if not message_text:
-            logger.warning("No message text found")
-            return jsonify({'error': 'No message text found'}), 400
-            
-        logger.info(f"Extracted message text: {message_text}")
-        
-        # Get the answer using our RAG system
-        answer = search_and_respond(message_text)
-        logger.info(f"Generated answer: {answer}")
-        
-        # Return the response in a format suitable for WhatsApp
-        return jsonify({
-            'message': answer
-        })
+        # If we processed any messages, return the responses
+        if responses:
+            return jsonify(responses)
+        else:
+            return jsonify({'error': 'No valid messages to process'}), 400
         
     except Exception as e:
         logger.error(f"Error processing webhook: {str(e)}", exc_info=True)
