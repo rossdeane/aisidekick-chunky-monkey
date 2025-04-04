@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 import pathlib
 import json
 import logging
+import requests
 
 # Configure logging
 logging.basicConfig(
@@ -21,7 +22,50 @@ logger = logging.getLogger(__name__)
 env_path = pathlib.Path(__file__).parent.absolute() / '.env'
 load_dotenv(dotenv_path=env_path, verbose=True)
 
+# WhatsApp API credentials
+WHATSAPP_TOKEN = os.getenv('WHATSAPP_TOKEN')
+WHATSAPP_PHONE_NUMBER_ID = os.getenv('WHATSAPP_PHONE_NUMBER_ID')
+WHATSAPP_VERIFY_TOKEN = os.getenv('WHATSAPP_VERIFY_TOKEN')
+
+# WhatsApp API endpoint
+WHATSAPP_API_URL = f"https://graph.facebook.com/v18.0/{WHATSAPP_PHONE_NUMBER_ID}/messages"
+
 app = Flask(__name__)
+
+# Function to send a WhatsApp message
+def send_whatsapp_message(to, message):
+    """
+    Send a WhatsApp message using the WhatsApp Cloud API.
+    
+    Args:
+        to (str): The recipient's phone number
+        message (str): The message to send
+        
+    Returns:
+        dict: The API response
+    """
+    headers = {
+        "Authorization": f"Bearer {WHATSAPP_TOKEN}",
+        "Content-Type": "application/json"
+    }
+    
+    payload = {
+        "messaging_product": "whatsapp",
+        "to": to,
+        "type": "text",
+        "text": {
+            "body": message
+        }
+    }
+    
+    try:
+        response = requests.post(WHATSAPP_API_URL, headers=headers, json=payload)
+        response.raise_for_status()
+        logger.info(f"Message sent successfully to {to}")
+        return response.json()
+    except Exception as e:
+        logger.error(f"Error sending WhatsApp message: {str(e)}")
+        return {"error": str(e)}
 
 # WhatsApp webhook verification endpoint
 @app.route('/webhook', methods=['GET'])
@@ -31,13 +75,10 @@ def verify_webhook():
     token = request.args.get('hub.verify_token')
     challenge = request.args.get('hub.challenge')
     
-    # Get the verification token from environment variables
-    verify_token = os.getenv('WHATSAPP_VERIFY_TOKEN')
-    
     # Check if the request is for verification
     if mode and token:
         # Check if the token matches
-        if mode == 'subscribe' and token == verify_token:
+        if mode == 'subscribe' and token == WHATSAPP_VERIFY_TOKEN:
             # Return the challenge
             return challenge, 200
         else:
@@ -119,11 +160,20 @@ def webhook():
                     answer = search_and_respond(message_text)
                     logger.info(f"Generated answer: {answer}")
                     
-                    # Add the response to our list
-                    responses.append({
-                        'message': answer,
-                        'to': message.get('from')  # Send response to the sender
-                    })
+                    # Get the sender's phone number
+                    sender_phone = message.get('from')
+                    
+                    # Send the response back to the sender
+                    if sender_phone:
+                        send_result = send_whatsapp_message(sender_phone, answer)
+                        logger.info(f"Send result: {json.dumps(send_result, indent=2)}")
+                        
+                        # Add the response to our list
+                        responses.append({
+                            'message': answer,
+                            'to': sender_phone,
+                            'send_result': send_result
+                        })
         
         # If we processed any messages, return the responses
         if responses:
