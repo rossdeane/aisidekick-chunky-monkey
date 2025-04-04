@@ -3,6 +3,19 @@ from main import search_and_respond
 import os
 from dotenv import load_dotenv
 import pathlib
+import json
+import logging
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler('webhook.log')
+    ]
+)
+logger = logging.getLogger(__name__)
 
 # Load environment variables
 env_path = pathlib.Path(__file__).parent.absolute() / '.env'
@@ -39,34 +52,45 @@ def webhook():
     try:
         # Get the webhook data from the request
         data = request.get_json()
-        print(data)
+        
+        # Log the entire webhook payload for debugging
+        logger.info(f"Received webhook data: {json.dumps(data, indent=2)}")
         
         # Check if this is a messages webhook
         if data.get('field') != 'messages':
+            logger.warning(f"Not a messages webhook: {data.get('field')}")
             return jsonify({'error': 'Not a messages webhook'}), 400
             
         # Extract the value object which contains the message details
         value = data.get('value', {})
+        logger.info(f"Webhook value: {json.dumps(value, indent=2)}")
         
         # Extract the first message from the messages array
         messages = value.get('messages', [])
         if not messages:
+            logger.warning("No messages found in webhook")
             return jsonify({'error': 'No messages found in webhook'}), 400
             
         message = messages[0]
+        logger.info(f"Processing message: {json.dumps(message, indent=2)}")
         
         # Check if this is a text message
         if message.get('type') != 'text':
+            logger.warning(f"Not a text message: {message.get('type')}")
             return jsonify({'error': 'Not a text message'}), 400
             
         # Extract the message text
         message_text = message.get('text', {}).get('body', '')
         
         if not message_text:
+            logger.warning("No message text found")
             return jsonify({'error': 'No message text found'}), 400
             
+        logger.info(f"Extracted message text: {message_text}")
+        
         # Get the answer using our RAG system
         answer = search_and_respond(message_text)
+        logger.info(f"Generated answer: {answer}")
         
         # Return the response in a format suitable for WhatsApp
         return jsonify({
@@ -74,6 +98,7 @@ def webhook():
         })
         
     except Exception as e:
+        logger.error(f"Error processing webhook: {str(e)}", exc_info=True)
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
