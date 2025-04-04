@@ -1,7 +1,7 @@
 .PHONY: install clean run test setup
 
 install:
-	pip install -r requirements.txt
+	pip3 install -r requirements.txt
 
 setup:
 	mkdir -p chroma_data
@@ -13,7 +13,7 @@ clean:
 	find . -type f -name "*.pyc" -delete
 
 run:
-	python main.py
+	python3 main.py
 
 test:
 	pytest tests/ 

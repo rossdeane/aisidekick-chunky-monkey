@@ -10,7 +10,8 @@ import os
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
 # --- Setup vector DB ---
-chroma_client = chromadb.Client(Settings(persist_directory="./chroma_data", chroma_db_impl="duckdb+parquet"))
+# Updated to use the new ChromaDB client initialization
+chroma_client = chromadb.PersistentClient(path="./chroma_data")
 collection = chroma_client.get_or_create_collection(name="business_faq")
 
 # --- Step 1: Ingest content ---
