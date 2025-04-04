@@ -19,7 +19,10 @@ car_urls = [
     'https://www.carhood.com/saab/',
     'https://www.carhood.com/toyota/',
     'https://www.carhood.com/volkswagen/',
-    'https://www.carhood.com/volvo/'
+    'https://www.carhood.com/volvo/',
+    'https://www.carhood.com/contact-us/',
+    'https://www.carhood.com/faqs/',
+    'https://www.carhood.com/soft-top-supply-fit/',
 ]
 
 if __name__ == "__main__":
