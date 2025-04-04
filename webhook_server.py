@@ -37,18 +37,35 @@ def verify_webhook():
 @app.route('/webhook', methods=['POST'])
 def webhook():
     try:
-        # Get the message from the request
+        # Get the webhook data from the request
         data = request.get_json()
         
-        # Extract the message from WhatsApp webhook format
-        # Note: You'll need to adjust this based on your specific WhatsApp Business API setup
-        message = data.get('message', {}).get('text', '')
+        # Check if this is a messages webhook
+        if data.get('field') != 'messages':
+            return jsonify({'error': 'Not a messages webhook'}), 400
+            
+        # Extract the value object which contains the message details
+        value = data.get('value', {})
         
-        if not message:
-            return jsonify({'error': 'No message found in request'}), 400
+        # Extract the first message from the messages array
+        messages = value.get('messages', [])
+        if not messages:
+            return jsonify({'error': 'No messages found in webhook'}), 400
+            
+        message = messages[0]
+        
+        # Check if this is a text message
+        if message.get('type') != 'text':
+            return jsonify({'error': 'Not a text message'}), 400
+            
+        # Extract the message text
+        message_text = message.get('text', {}).get('body', '')
+        
+        if not message_text:
+            return jsonify({'error': 'No message text found'}), 400
             
         # Get the answer using our RAG system
-        answer = search_and_respond(message)
+        answer = search_and_respond(message_text)
         
         # Return the response in a format suitable for WhatsApp
         return jsonify({
