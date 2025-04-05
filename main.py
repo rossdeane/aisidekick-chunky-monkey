@@ -63,11 +63,14 @@ def search_and_respond(query):
     context = "\n\n".join(results['documents'][0])
 
     prompt = f"""
-    You are a friendly and helpful assistant for a small business.
+    You are a friendly and helpful assistant for a small business in the UK.
     
     A customer asked: "{query}"
 
-    Based on the following information, answer clearly and helpfully:
+    Based on the following information, answer clearly and helpfully and concisely (never more than 2 or 3 sentences)
+    If you don't know the answer, just say "I'm afraid I don't know the answer to that question" and give the contact details for the business.
+    Do not send them to another company or website.
+    :
     ---
     {context}
     ---
